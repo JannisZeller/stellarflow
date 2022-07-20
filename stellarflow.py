@@ -31,14 +31,16 @@ class System():
         velocities: np.ndarray,
         masses: np.ndarray,
         dt: float=1., # Step size in earth days
+        smooth: float=1e-20, # Smoothing of distances when dividing
         _AU: float=149597870700., # Astronomical Units
         _ED: float=86400., # Earth Day
-        _G: float=6.67430e-11 / 149597870700.**3. * 86400.**2. * 1.98847e30 # Gravitational constant in AU / ED units
+        _G: float=6.67430e-11 / 149597870700.**3. * 86400.**2. * 1.98847e30 # Gravitational constant in AU, ED, Sun Mass units
     ):
         self.locations  = locations
         self.velocities = velocities
         self.masses = masses
         self.dt  = dt
+        self.smooth = smooth
         self._AU = _AU
         self._ED = _ED
         self._G  = _G
@@ -58,7 +60,7 @@ class System():
         self._Q_hist = [Q]
 
         ## Storing the masses to a tf.Tensor
-        assert masses.size == locations.shape[0], f"Locations and masses must be of the same length, but got locations.shape={locations.shape} and masses.size={masses.shasizepe}."
+        assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, f"Locations and masses must be of the same length and masses must be of shape (N,), but got locations.shape={locations.shape} and masses.shape={masses.shape}."
         M = tf.Variable(masses, dtype=tf.float32)
         M = tf.tile(M, [self._mask_reps])
         M = tf.reshape(M, (-1, 1))
@@ -85,7 +87,7 @@ class System():
         D = tf.reshape(D, (self._mask_reps, (self._mask_reps-1), -1))
 
         ## Calculating |xi-xj|^(-3)
-        d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + 1e-2, -3./2.) # 1e-10 to smooth numerical overflow
+        d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.) # 1e-20 to smooth numerical overflow
         
         ## Calculating pairwise Force
         F = self._M * D * d_inv_cube
