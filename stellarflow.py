@@ -72,6 +72,7 @@ class System():
     def _pairwise_distances(self, X: tf.Tensor) -> tf.Tensor:
         """Helper function to calculate the pairwise distances of the locations matrix.
         """
+        ## TODO: Could be possibly further optimized. The current solution calculates all N^2 distances, but N^2/2 would be sufficient when switching the signs correctly.
         return tf.expand_dims(X, axis=0) - tf.expand_dims(X, axis=1)
 
 
