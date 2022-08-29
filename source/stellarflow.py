@@ -61,11 +61,20 @@ class System():
 
         ## Storing the masses to a tf.Tensor
         assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, f"Locations and masses must be of the same length and masses must be of shape (N,), but got locations.shape={locations.shape} and masses.shape={masses.shape}."
+        self._M = self.__reshape_masses(masses)
+        # M = tf.Variable(masses, dtype=tf.float32)
+        # M = tf.tile(M, [self._mask_reps])
+        # M = tf.reshape(M, (-1, 1))
+        # M = tf.boolean_mask(M, self._mask, axis=0)
+        # self._M = tf.reshape(M, (self._mask_reps, -1, 1))
+
+
+    def __reshape_masses(self, masses: np.ndarray):
         M = tf.Variable(masses, dtype=tf.float32)
         M = tf.tile(M, [self._mask_reps])
         M = tf.reshape(M, (-1, 1))
         M = tf.boolean_mask(M, self._mask, axis=0)
-        self._M = tf.reshape(M, (self._mask_reps, -1, 1))
+        return tf.reshape(M, (self._mask_reps, -1, 1))
 
 
     @tf.function
@@ -103,7 +112,7 @@ class System():
 
 
     @tf.function
-    def solver_rkf(self, Q, f):
+    def _solver_rkf(self, Q, f):
         dt = self.dt
         k1 = f(Q)
         k2 = f(Q + dt * k1 / 4.)
@@ -116,7 +125,7 @@ class System():
 
 
     def step(self) -> None:
-        Q = self.solver_rkf(self._Q, self._acceleration)
+        Q = self._solver_rkf(self._Q, self._acceleration)
         self._Q = Q
         self._Q_hist = tf.concat([self._Q_hist, [Q]], axis=0)
 
