@@ -49,19 +49,20 @@ class System():
         #-------------------------------------------------------------------
 
         ## Pre-Creating mask for pairwise calculations later on
-        self._mask_reps = int(locations.shape[0])
-        self._mask_len  = int(self._mask_reps*self._mask_reps)
-        self._mask = tf.tile([False] + (self._mask_reps)*[True], [self._mask_reps])[:self._mask_len] 
+        # self._mask_reps = int(locations.shape[0])
+        # self._mask_len  = int(self._mask_reps*self._mask_reps)
+        # self._mask = tf.tile([False] + (self._mask_reps)*[True], [self._mask_reps])[:self._mask_len] 
+        self._mask_reps, self._mask_len, self._mask = self._create_mask(locations.shape[0])
 
         ## Combining locations and velocities to internal state tf.Tensor
         assert locations.shape == velocities.shape, f"Locations and velocities must be of the same shape, but got locations.shape={locations.shape} and velocities.shape={velocities.shape}."
         Q = np.concatenate([locations, velocities], axis=1)
         self._Q = tf.Variable(Q, dtype=tf.float32)
-        self._Q_hist = [Q]
+        self._Q_hist = tf.cast(tf.expand_dims(Q, axis=0), dtype=tf.float32)
 
         ## Storing the masses to a tf.Tensor
         assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, f"Locations and masses must be of the same length and masses must be of shape (N,), but got locations.shape={locations.shape} and masses.shape={masses.shape}."
-        self._M = self.__reshape_masses(masses)
+        self._M = self._reshape_masses(masses)
         # M = tf.Variable(masses, dtype=tf.float32)
         # M = tf.tile(M, [self._mask_reps])
         # M = tf.reshape(M, (-1, 1))
@@ -69,12 +70,18 @@ class System():
         # self._M = tf.reshape(M, (self._mask_reps, -1, 1))
 
 
-    def __reshape_masses(self, masses: np.ndarray):
+    def _reshape_masses(self, masses: np.ndarray):
         M = tf.Variable(masses, dtype=tf.float32)
         M = tf.tile(M, [self._mask_reps])
         M = tf.reshape(M, (-1, 1))
         M = tf.boolean_mask(M, self._mask, axis=0)
         return tf.reshape(M, (self._mask_reps, -1, 1))
+
+    def _create_mask(self, N: int):
+        mask_reps = int(N)
+        mask_len  = int(mask_reps*mask_reps)
+        mask = tf.tile([False] + (mask_reps)*[True], [mask_reps])[:mask_len] 
+        return mask_reps, mask_len, mask
 
 
     @tf.function
@@ -135,6 +142,9 @@ class System():
             self.step()
         sleep(0.3)
 
+    def _reset(self):
+        self._Q = self._Q_hist[0]
+        self._Q_hist = [self._Q]
 
     def plot_history_3d(self) -> None:
         fig = plt.figure(figsize=(10, 10))
