@@ -62,7 +62,7 @@ class System():
 
         ## Storing the masses to a tf.Tensor
         assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, f"Locations and masses must be of the same length and masses must be of shape (N,), but got locations.shape={locations.shape} and masses.shape={masses.shape}."
-        self._M = self._reshape_masses(masses)
+        self._M = self._reshape_masses(masses) 
         # M = tf.Variable(masses, dtype=tf.float32)
         # M = tf.tile(M, [self._mask_reps])
         # M = tf.reshape(M, (-1, 1))
@@ -106,14 +106,15 @@ class System():
         ## Calculating |xi-xj|^(-3)
         d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.) # 1e-20 to smooth numerical overflow
         
-        ## Calculating pairwise Force
-        F = self._M * D * d_inv_cube
+        ## Calculating pairwise Acceleration ("target mass" irrelevant)
+        dV = self._M * D * d_inv_cube
 
         ## Summation over each other body
-        F = self._G * tf.reduce_sum(F, axis=1)
+        dV = self._G * tf.reduce_sum(dV, axis=1)
 
         ## Combining to R6 acceleration
-        dQ = tf.concat([Q[:, 3:], F], axis=-1)
+        #  The own masses are not needed because of the formula in "../README.md"
+        dQ = tf.concat([Q[:, 3:], dV], axis=-1)
         
         return dQ
 
