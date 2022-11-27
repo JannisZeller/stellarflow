@@ -27,20 +27,20 @@ class System():
     _ED: float=86400.
 
     def __init__(self, 
-        locations: np.ndarray,
+        locations:  np.ndarray,
         velocities: np.ndarray,
-        masses: np.ndarray,
-        dt: float=1., # Step size in earth days
-        smooth: float=1e-20, # Smoothing of distances when dividing
-        _AU: float=149597870700., # Astronomical Units
-        _ED: float=86400., # Earth Day
-        _G: float=6.67430e-11 / 149597870700.**3. * 86400.**2. * 1.98847e30 # Gravitational constant in AU, ED, Sun Mass units
+        masses:     np.ndarray,
+        dt:     float=1.,               # Step size in earth days
+        smooth: float=1e-20,            # Smoothing of distances when dividing
+        _AU:    float=149597870700.,    # Astronomical Units
+        _ED:    float=86400.,           # Earth Day
+        _G:     float=6.67430e-11 / 149597870700.**3. * 86400.**2. * 1.98847e30 # Gravitational constant in AU, ED, Sun Mass units
     ):
         self.locations  = locations
         self.velocities = velocities
-        self.masses = masses
+        self.masses     = masses
+        self.smooth     = smooth
         self.dt  = dt
-        self.smooth = smooth
         self._AU = _AU
         self._ED = _ED
         self._G  = _G
@@ -49,27 +49,30 @@ class System():
         #-------------------------------------------------------------------
 
         ## Pre-Creating mask for pairwise calculations later on
-        # self._mask_reps = int(locations.shape[0])
-        # self._mask_len  = int(self._mask_reps*self._mask_reps)
-        # self._mask = tf.tile([False] + (self._mask_reps)*[True], [self._mask_reps])[:self._mask_len] 
         self._mask_reps, self._mask_len, self._mask = self._create_mask(locations.shape[0])
 
         ## Combining locations and velocities to internal state tf.Tensor
-        assert locations.shape == velocities.shape, f"Locations and velocities must be of the same shape, but got locations.shape={locations.shape} and velocities.shape={velocities.shape}."
-        Q = np.concatenate([locations, velocities], axis=1)
-        self._Q = tf.Variable(Q, dtype=tf.float32)
-        self._Q_hist = tf.cast(tf.expand_dims(Q, axis=0), dtype=tf.float32)
+        assert locations.shape == velocities.shape, \
+            f"Locations and velocities must be of the same shape, but got \
+            locations.shape={locations.shape} and \
+            velocities.shape={velocities.shape}."
+
+        ## Setting up Q-Tensor for internal processing
+        self._Q = tf.Variable(
+            np.concatenate([locations, velocities], axis=1), 
+            dtype=tf.float32
+        )
+        self._Q_hist = tf.cast(tf.expand_dims(self._Q, axis=0), dtype=tf.float32)
 
         ## Storing the masses to a tf.Tensor
-        assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, f"Locations and masses must be of the same length and masses must be of shape (N,), but got locations.shape={locations.shape} and masses.shape={masses.shape}."
+        assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, \
+            f"Locations and masses must be of the same length and masses must \
+                be of shape (N,), but got locations.shape={locations.shape} \
+                    and masses.shape={masses.shape}."
         self._M = self._reshape_masses(masses) 
-        # M = tf.Variable(masses, dtype=tf.float32)
-        # M = tf.tile(M, [self._mask_reps])
-        # M = tf.reshape(M, (-1, 1))
-        # M = tf.boolean_mask(M, self._mask, axis=0)
-        # self._M = tf.reshape(M, (self._mask_reps, -1, 1))
 
 
+    ## Reshaping Masses for vectorization
     def _reshape_masses(self, masses: np.ndarray):
         M = tf.Variable(masses, dtype=tf.float32)
         M = tf.tile(M, [self._mask_reps])
@@ -77,6 +80,8 @@ class System():
         M = tf.boolean_mask(M, self._mask, axis=0)
         return tf.reshape(M, (self._mask_reps, -1, 1))
 
+    ## Reshaping Mask for vectorization -> Which body is affected by which 
+    #  other?
     def _create_mask(self, N: int):
         mask_reps = int(N)
         mask_len  = int(mask_reps*mask_reps)
@@ -84,14 +89,20 @@ class System():
         return mask_reps, mask_len, mask
 
 
+    ## Fully vectorized implementation of pairwise distances between the bodys
     @tf.function
     def _pairwise_distances(self, X: tf.Tensor) -> tf.Tensor:
         """Helper function to calculate the pairwise distances of the locations matrix.
         """
-        ## TODO: Could be possibly further optimized. The current solution calculates all N^2 distances, but N^2/2 would be sufficient when switching the signs correctly.
+        ## TODO: Could be possibly further optimized. The current solution 
+        #  calculates all N^2 distances, but N^2/2 would be sufficient when 
+        #  switching the signs correctly.
         return tf.expand_dims(X, axis=0) - tf.expand_dims(X, axis=1)
 
 
+    ## Vectorized acceleration calculation. Acts on the 6D-Tensor Q and returns
+    #  dQ which acts as the "velocity" for Q (but the acceleration is the 
+    #  actual stuff that is computed).
     @tf.function
     def _acceleration(self, Q) -> tf.Tensor:
 
@@ -119,6 +130,9 @@ class System():
         return dQ
 
 
+    ## Runge-Kutta-Fehlberg solver for integrating dQ = f(Q) where f(Q) is the
+    #  6D acceleration (v, a) where a is induced by the pairwise gravitation
+    #  of the bodies.
     @tf.function
     def _solver_rkf(self, Q, f):
         dt = self.dt
@@ -132,35 +146,45 @@ class System():
         return Q
 
 
+    ## Performing / integrating one timestep.
     def step(self) -> None:
         Q = self._solver_rkf(self._Q, self._acceleration)
         self._Q = Q
         self._Q_hist = tf.concat([self._Q_hist, [Q]], axis=0)
 
     
+    ## Performing a fixed number of steps.
     def simulation(self, steps) -> None:
-        for k in tqdm(range(steps)):
+        for _ in tqdm(range(steps)):
             self.step()
-        sleep(0.3)
 
-    def _reset(self):
+
+    ## Resetting the system.
+    def _reset(self): # This version for tfa-environment
         self._Q = self._Q_hist[0]
         self._Q_hist = [self._Q]
+    def reset(self):
+        self._reset()
 
-    def plot_history_3d(self) -> None:
-        fig = plt.figure(figsize=(10, 10))
+
+    ## 3D-Plotting
+    def plot_history_3d(self, n_sample=25, figsize=(5, 5)) -> None:
+        if self._Q_hist.shape[1] > n_sample:
+            sample = np.random.choice(np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False)
+        else:
+            sample = range(self._Q_hist.shape[1])
+        fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111, projection='3d')
-        for n in range(self._Q_hist.shape[1]):
+        for idx in sample:
             ax.plot(
-                self._Q_hist[:, n, 0], 
-                self._Q_hist[:, n, 1], 
-                self._Q_hist[:, n, 2]
+                self._Q_hist[:, idx, 0], 
+                self._Q_hist[:, idx, 1], 
+                self._Q_hist[:, idx, 2]
             )
     
-    def plot_history_2d(self, ZSIZE=False, SUBSET=True, n_sample=100) -> None:
 
-        ## TODO: Implement sampler and forcing ZSIZE=False for large scales
-
+    ## 2D-Plotting
+    def plot_history_2d(self, ZSIZE=False, n_sample=100, figsize=(5, 5)) -> None:
         def plot_single_2d(n, ZSIZE=ZSIZE):
             if ZSIZE:
                 plt.scatter(
@@ -173,15 +197,11 @@ class System():
                     self._Q_hist[:, n, 0], 
                     self._Q_hist[:, n, 1]
                 )
-        
-        plt.figure(figsize=(10, 10))
-        if self._Q_hist.shape[1] > 25 and SUBSET==True:
+        plt.figure(figsize=figsize)
+        if self._Q_hist.shape[1] > n_sample:
             sample = np.random.choice(np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False)
-            for n in sample:
-                plot_single_2d(n)
-        
         else:
-            for n in range(self._Q_hist.shape[1]):
-                plot_single_2d(n)
-
+            sample = range(self._Q_hist.shape[1])
+        for idx in sample:
+            plot_single_2d(idx)
         plt.show()
