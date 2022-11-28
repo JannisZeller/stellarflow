@@ -1,25 +1,22 @@
 # %% Imports
 #-------------------------------------------------------------------------------
 
-from typing import Callable
+from typing import Callable, Tuple
 
 import numpy as np
 import tensorflow as tf
-import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from time import sleep
 
 #-------------------------------------------------------------------------------
 
-## Next step could be the implementation of different "scales" combining step sizes and unit systems such that different types (solar systems, larger structures etc.) can be simulated.
 
 
-# %% Implementation
+#%% Implementation
 # Implementation of the simulation class
 #-------------------------------------------------------------------------------
 
-class System():
+class nBodySystem():
     """This class embodies a system of stellar bodies, which can be propagated via the step or simulate methods.
     """
 
@@ -104,7 +101,7 @@ class System():
     #  dQ which acts as the "velocity" for Q (but the acceleration is the 
     #  actual stuff that is computed).
     @tf.function
-    def _acceleration(self, Q) -> tf.Tensor:
+    def _acceleration(self, Q: tf.Tensor) -> tf.Tensor:
 
         ## Calculating Pairwise Distances
         D = self._pairwise_distances(Q[:, :3])
@@ -134,7 +131,7 @@ class System():
     #  6D acceleration (v, a) where a is induced by the pairwise gravitation
     #  of the bodies.
     @tf.function
-    def _solver_rkf(self, Q, f):
+    def _solver_rkf(self, Q: tf.Tensor, f: Callable):
         dt = self.dt
         k1 = f(Q)
         k2 = f(Q + dt * k1 / 4.)
@@ -154,7 +151,7 @@ class System():
 
     
     ## Performing a fixed number of steps.
-    def simulation(self, steps) -> None:
+    def simulation(self, steps: int) -> None:
         for _ in tqdm(range(steps)):
             self.step()
 
@@ -184,7 +181,7 @@ class System():
     
 
     ## 2D-Plotting
-    def plot_history_2d(self, ZSIZE=False, n_sample=100, figsize=(5, 5)) -> None:
+    def plot_history_2d(self, ZSIZE: bool=False, n_sample: int=100, figsize: Tuple[int, int]=(5, 5)) -> None:
         def plot_single_2d(n, ZSIZE=ZSIZE):
             if ZSIZE:
                 plt.scatter(
