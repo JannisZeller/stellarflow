@@ -112,7 +112,7 @@ class nBodySystem():
         D = tf.reshape(D, (self._mask_reps, (self._mask_reps-1), -1))
 
         ## Calculating |xi-xj|^(-3)
-        d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.) # 1e-20 to smooth numerical overflow
+        d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.)
         
         ## Calculating pairwise Acceleration ("target mass" irrelevant)
         dV = self._M * D * d_inv_cube
