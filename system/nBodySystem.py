@@ -127,33 +127,45 @@ class nBodySystem():
         return dQ
 
 
-    ## Runge-Kutta-Fehlberg solver for integrating dQ = f(Q) where f(Q) is the
+    ## Runge-Kutta-Fehlberg solver for integrating dQ = dQ(Q) where dQ(Q) is the
     #  6D acceleration (v, a) where a is induced by the pairwise gravitation
     #  of the bodies.
     @tf.function
-    def _solver_rkf(self, Q: tf.Tensor, f: Callable):
+    def _solver_rk4(self, Q: tf.Tensor, dQ: Callable):
         dt = self.dt
-        k1 = f(Q)
-        k2 = f(Q + dt * k1 / 4.)
-        k3 = f(Q + dt * k1 * 3. / 32.      + dt * k2 * 9. / 32.)
-        k4 = f(Q + dt * k1 * 1932. / 2197. - dt * k2 * 7200. / 2197. + dt * k3 * 7296. / 2197.)
-        k5 = f(Q + dt * k1 * 439. / 216.   - dt * k2 * 8.            + dt * k3 * 3680. / 513   - dt * k4 * 845. / 4104.)
-        k6 = f(Q - dt * k1 * 8. / 27.      + dt * k2 * 2.            - dt * k3 * 3544. / 2565. + dt * k4 * 1859. / 4104. - dt * k5 * 11. / 40.)
+        k1 = dQ(Q)
+        k2 = dQ(Q + dt * k1 / 2.)
+        k3 = dQ(Q + dt * k2 / 2.)
+        k4 = dQ(Q + dt * k3)
+        return Q + dt * (k1 + 2. * k2 + 2. * k3 + k4) / 6.
+
+    @tf.function
+    def _solver_rkf(self, Q: tf.Tensor, dQ: Callable):
+        dt = self.dt
+        k1 = dQ(Q)
+        k2 = dQ(Q + dt * k1 / 4.)
+        k3 = dQ(Q + dt * k1 * 3. / 32.      + dt * k2 * 9. / 32.)
+        k4 = dQ(Q + dt * k1 * 1932. / 2197. - dt * k2 * 7200. / 2197. + dt * k3 * 7296. / 2197.)
+        k5 = dQ(Q + dt * k1 * 439. / 216.   - dt * k2 * 8.            + dt * k3 * 3680. / 513   - dt * k4 * 845. / 4104.)
+        k6 = dQ(Q - dt * k1 * 8. / 27.      + dt * k2 * 2.            - dt * k3 * 3544. / 2565. + dt * k4 * 1859. / 4104. - dt * k5 * 11. / 40.)
         Q = Q + dt * (16. / 135. * k1 + 6656. / 12825. * k3 + 28561. / 56430. * k4 - 9. / 50. * k5 + 2. / 55. * k6)
         return Q
 
 
     ## Performing / integrating one timestep.
-    def step(self) -> None:
-        Q = self._solver_rkf(self._Q, self._acceleration)
+    def step(self, algo: str="rk4") -> None:
+        if algo == "rk4":
+            Q = self._solver_rk4(self._Q, self._acceleration)
+        if algo == "rkf":
+            Q = self._solver_rkf(self._Q, self._acceleration)
         self._Q = Q
         self._Q_hist = tf.concat([self._Q_hist, [Q]], axis=0)
 
     
     ## Performing a fixed number of steps.
-    def simulation(self, steps: int) -> None:
+    def simulation(self, steps: int, algo: str="rk4") -> None:
         for _ in tqdm(range(steps)):
-            self.step()
+            self.step(algo)
 
 
     ## Resetting the system.
