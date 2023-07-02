@@ -5,57 +5,57 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
-class NBodySystem():
-    """This class embodies a system of stellar bodies, which can be propagated via the step or simulate methods.
+class NBodySystem:
+    """
+    This class embodies a system of stellar bodies, which can be propagated
+    via the step or simulate methods. The unit system is set to length in
+    astronomical units, an time in earth days. The suitable constants are
+    provided within the class
     """
 
-    _AU: float=149597870700.
-    _ED: float=86400.
+    astronomical_unit: float = 149597870700.0
+    earth_day: float = 86400.0
+    gravitational_constant: float = 0.0002959211565456235
 
-    def __init__(self,
-        locations:  np.ndarray,
-        velocities: np.ndarray,
-        masses:     np.ndarray,
-        dt:     float=1.,               # Step size in earth days
-        smooth: float=1e-20,            # Smoothing of distances when dividing
-        _AU:    float=149597870700.,    # Astronomical Units
-        _ED:    float=86400.,           # Earth Day
-        _G:     float=6.67430e-11 / 149597870700.**3. * 86400.**2. * 1.98847e30 # Gravitational constant in AU, ED, Sun Mass units
+    def __init__(
+        self,
+        initial_locations: np.ndarray,
+        initial_velocities: np.ndarray,
+        masses: np.ndarray,
+        dt: float = 1.0,  # Step size in earth days
+        smooth: float= 1e-20
     ):
-        self.locations  = locations
-        self.velocities = velocities
-        self.masses     = masses
-        self.smooth     = smooth
-        self.dt  = dt
-        self._AU = _AU
-        self._ED = _ED
-        self._G  = _G
-
-        ## The Internal State and Mass Tensors get already constructed here:
-        #-------------------------------------------------------------------
+        self.locations = initial_locations
+        self.velocities = initial_velocities
+        self.masses = masses
+        self.dt = dt
 
         ## Pre-Creating mask for pairwise calculations later on
-        self._mask_reps, self._mask_len, self._mask = self._create_mask(locations.shape[0])
+        self._mask_reps, self._mask_len, self._mask = self._create_mask(
+            initial_locations.shape[0]
+        )
 
         ## Combining locations and velocities to internal state tf.Tensor
-        assert locations.shape == velocities.shape, \
-            f"Locations and velocities must be of the same shape, but got \
-            locations.shape={locations.shape} and \
-            velocities.shape={velocities.shape}."
+        assert (
+            initial_locations.shape == initial_velocities.shape
+        ), f"Locations and velocities must be of the same shape, but got \
+            locations.shape={initial_locations.shape} and \
+            velocities.shape={initial_velocities.shape}."
 
         ## Setting up Q-Tensor for internal processing
         self._Q = tf.Variable(
-            np.concatenate([locations, velocities], axis=1),
-            dtype=tf.float32
+            np.concatenate([initial_locations, initial_velocities], axis=1), dtype=tf.float32
         )
         self._Q_hist = tf.cast(tf.expand_dims(self._Q, axis=0), dtype=tf.float32)
 
         ## Storing the masses to a tf.Tensor
-        assert masses.shape[0] == locations.shape[0] and masses.ndim == 1, \
-            f"Locations and masses must be of the same length and masses must \
-                be of shape (N,), but got locations.shape={locations.shape} \
-                    and masses.shape={masses.shape}."
+        assert (masses.shape[0] == initial_locations.shape[0] and masses.ndim == 1), (
+            f"Locations and masses must be of the same length and masses must" +
+            f"be of shape (N,), but got locations.shape={initial_locations.shape}" +
+            f"and masses.shape={masses.shape}.")
         self._M = self._reshape_masses(masses)
+
+        self.smooth = smooth
 
 
     ## Reshaping Masses for vectorization
@@ -66,20 +66,20 @@ class NBodySystem():
         M = tf.boolean_mask(M, self._mask, axis=0)
         return tf.reshape(M, (self._mask_reps, -1, 1))
 
+
     ## Reshaping Mask for vectorization -> Which body is affected by which
     #  other?
     def _create_mask(self, N: int):
         mask_reps = int(N)
-        mask_len  = int(mask_reps*mask_reps)
-        mask = tf.tile([False] + (mask_reps)*[True], [mask_reps])[:mask_len]
+        mask_len = int(mask_reps * mask_reps)
+        mask = tf.tile([False] + (mask_reps) * [True], [mask_reps])[:mask_len]
         return mask_reps, mask_len, mask
 
 
     ## Fully vectorized implementation of pairwise distances between the bodys
     @tf.function
     def _pairwise_distances(self, X: tf.Tensor) -> tf.Tensor:
-        """Helper function to calculate the pairwise distances of the locations matrix.
-        """
+        """Helper function to calculate the pairwise distances of the locations matrix."""
         ## TODO: Could be possibly further optimized. The current solution
         #  calculates all N^2 distances, but N^2/2 would be sufficient when
         #  switching the signs correctly.
@@ -91,23 +91,24 @@ class NBodySystem():
     #  actual stuff that is computed).
     @tf.function
     def _acceleration(self, Q: tf.Tensor) -> tf.Tensor:
-
         ## Calculating Pairwise Distances
         D = self._pairwise_distances(Q[:, :3])
 
         ## Masking and reshaping X and M to drop self-differences:
         D = tf.reshape(D, (-1, 3))
         D = tf.boolean_mask(D, self._mask, axis=0)
-        D = tf.reshape(D, (self._mask_reps, (self._mask_reps-1), -1))
+        D = tf.reshape(D, (self._mask_reps, (self._mask_reps - 1), -1))
 
         ## Calculating |xi-xj|^(-3)
-        d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.)
+        d_inv_cube = tf.pow(
+            tf.reduce_sum(D * D, axis=-1, keepdims=True) + self.smooth, -3.0 / 2.0
+        )
 
         ## Calculating pairwise Acceleration ("target mass" irrelevant)
         dV = self._M * D * d_inv_cube
 
         ## Summation over each other body
-        dV = self._G * tf.reduce_sum(dV, axis=1)
+        dV = self.gravitational_constant * tf.reduce_sum(dV, axis=1)
 
         ## Combining to R6 acceleration
         #  The own masses are not needed because of the formula in "../README.md"
@@ -123,26 +124,51 @@ class NBodySystem():
     def _solver_rk4(self, Q: tf.Tensor, dQ: Callable):
         dt = self.dt
         k1 = dQ(Q)
-        k2 = dQ(Q + dt * k1 / 2.)
-        k3 = dQ(Q + dt * k2 / 2.)
+        k2 = dQ(Q + dt * k1 / 2.0)
+        k3 = dQ(Q + dt * k2 / 2.0)
         k4 = dQ(Q + dt * k3)
-        return Q + dt * (k1 + 2. * k2 + 2. * k3 + k4) / 6.
+        return Q + dt * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
+
 
     @tf.function
     def _solver_rkf(self, Q: tf.Tensor, dQ: Callable):
         dt = self.dt
         k1 = dQ(Q)
-        k2 = dQ(Q + dt * k1 / 4.)
-        k3 = dQ(Q + dt * k1 * 3. / 32.      + dt * k2 * 9. / 32.)
-        k4 = dQ(Q + dt * k1 * 1932. / 2197. - dt * k2 * 7200. / 2197. + dt * k3 * 7296. / 2197.)
-        k5 = dQ(Q + dt * k1 * 439. / 216.   - dt * k2 * 8.            + dt * k3 * 3680. / 513   - dt * k4 * 845. / 4104.)
-        k6 = dQ(Q - dt * k1 * 8. / 27.      + dt * k2 * 2.            - dt * k3 * 3544. / 2565. + dt * k4 * 1859. / 4104. - dt * k5 * 11. / 40.)
-        Q = Q + dt * (16. / 135. * k1 + 6656. / 12825. * k3 + 28561. / 56430. * k4 - 9. / 50. * k5 + 2. / 55. * k6)
+        k2 = dQ(Q + dt * k1 / 4.0)
+        k3 = dQ(Q + dt * k1 * 3.0 / 32.0 + dt * k2 * 9.0 / 32.0)
+        k4 = dQ(
+            Q
+            + dt * k1 * 1932.0 / 2197.0
+            - dt * k2 * 7200.0 / 2197.0
+            + dt * k3 * 7296.0 / 2197.0
+        )
+        k5 = dQ(
+            Q
+            + dt * k1 * 439.0 / 216.0
+            - dt * k2 * 8.0
+            + dt * k3 * 3680.0 / 513
+            - dt * k4 * 845.0 / 4104.0
+        )
+        k6 = dQ(
+            Q
+            - dt * k1 * 8.0 / 27.0
+            + dt * k2 * 2.0
+            - dt * k3 * 3544.0 / 2565.0
+            + dt * k4 * 1859.0 / 4104.0
+            - dt * k5 * 11.0 / 40.0
+        )
+        Q = Q + dt * (
+            16.0 / 135.0 * k1
+            + 6656.0 / 12825.0 * k3
+            + 28561.0 / 56430.0 * k4
+            - 9.0 / 50.0 * k5
+            + 2.0 / 55.0 * k6
+        )
         return Q
 
 
     ## Performing / integrating one timestep.
-    def step(self, algo: str="rk4") -> None:
+    def step(self, algo: str = "rk4") -> None:
         if algo == "rk4":
             Q = self._solver_rk4(self._Q, self._acceleration)
         if algo == "rkf":
@@ -152,15 +178,17 @@ class NBodySystem():
 
 
     ## Performing a fixed number of steps.
-    def simulation(self, steps: int, algo: str="rk4") -> None:
+    def simulation(self, steps: int, algo: str = "rk4") -> None:
         for _ in tqdm(range(steps)):
             self.step(algo)
 
 
     ## Resetting the system.
-    def _reset(self): # This version for tfa-environment
+    def _reset(self):  # This version for tfa-environment
         self._Q = self._Q_hist[0]
         self._Q_hist = [self._Q]
+
+
     def reset(self):
         self._reset()
 
@@ -168,36 +196,44 @@ class NBodySystem():
     ## 3D-Plotting
     def plot_history_3d(self, n_sample=25, figsize=(5, 5)) -> None:
         if self._Q_hist.shape[1] > n_sample:
-            sample = np.random.choice(np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False)
+            sample = np.random.choice(
+                np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False
+            )
         else:
             sample = range(self._Q_hist.shape[1])
         fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
         for idx in sample:
             ax.plot(
                 self._Q_hist[:, idx, 0],
                 self._Q_hist[:, idx, 1],
-                self._Q_hist[:, idx, 2]
+                self._Q_hist[:, idx, 2],
             )
 
 
     ## 2D-Plotting
-    def plot_history_2d(self, ZSIZE: bool=False, n_sample: int=100, figsize: Tuple[int, int]=(5, 5)) -> None:
+    def plot_history_2d(
+        self,
+        ZSIZE: bool = False,
+        n_sample: int = 100,
+        figsize: Tuple[int, int] = (5, 5),
+    ) -> None:
         def plot_single_2d(n, ZSIZE=ZSIZE):
             if ZSIZE:
                 plt.scatter(
                     self._Q_hist[:, n, 0],
                     self._Q_hist[:, n, 1],
-                    0.75 * np.clip(self._Q_hist[:, n, 2].numpy(), a_min=1e-10, a_max=np.inf)
+                    0.75
+                    * np.clip(self._Q_hist[:, n, 2].numpy(), a_min=1e-10, a_max=np.inf),
                 )
             else:
-                plt.scatter(
-                    self._Q_hist[:, n, 0],
-                    self._Q_hist[:, n, 1]
-                )
+                plt.scatter(self._Q_hist[:, n, 0], self._Q_hist[:, n, 1])
+
         plt.figure(figsize=figsize)
         if self._Q_hist.shape[1] > n_sample:
-            sample = np.random.choice(np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False)
+            sample = np.random.choice(
+                np.arange(self._Q_hist.shape[1]), size=n_sample, replace=False
+            )
         else:
             sample = range(self._Q_hist.shape[1])
         for idx in sample:
