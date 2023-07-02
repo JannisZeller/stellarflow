@@ -21,10 +21,10 @@ from system.nBodySystem import nBodySystem
 
 class stellarEnv(py_environment.PyEnvironment):
     ## TODO: Implement mass / propellant consumtion
-    def __init__(self, 
+    def __init__(self,
             mass: float,
-            initial_location: np.ndarray, 
-            initial_velocity: np.ndarray, 
+            initial_location: np.ndarray,
+            initial_velocity: np.ndarray,
             target_point:   np.ndarray,
             stfSystem:      nBodySystem,
             target_point_relative:      bool=False,
@@ -39,9 +39,9 @@ class stellarEnv(py_environment.PyEnvironment):
         self._y = np.array(initial_velocity)
         self._q = tf.constant(
             np.concatenate(
-                [initial_location, initial_velocity], 
+                [initial_location, initial_velocity],
                 axis=0
-            ), 
+            ),
             dtype=tf.float32
         )
         self._reward_factor_boost = reward_factor_boost
@@ -59,8 +59,8 @@ class stellarEnv(py_environment.PyEnvironment):
         ## Binding with stf.System:
         stfSystem._Q = tf.Variable(
             np.concatenate(
-                [stfSystem._Q.numpy(), np.expand_dims(self._q, axis=0)], 
-                axis=0), 
+                [stfSystem._Q.numpy(), np.expand_dims(self._q, axis=0)],
+                axis=0),
             dtype=tf.float32
         )
         stfSystem._Q_hist = tf.cast(tf.expand_dims(stfSystem._Q, axis=0), dtype=tf.float32)
@@ -75,8 +75,8 @@ class stellarEnv(py_environment.PyEnvironment):
         ## Providing for tfa-py_env
         #  TODO: Better values for minimum and maximum
         self._action_spec = array_spec.BoundedArraySpec(
-            shape=(3,), 
-            dtype=np.float32, 
+            shape=(3,),
+            dtype=np.float32,
             minimum=-1e-31,
             maximum=1e-31,
             name="boost"
@@ -92,7 +92,7 @@ class stellarEnv(py_environment.PyEnvironment):
         ## Variable for boost (Defy tf's-Error: "AssertionError: Called a function referencing variables which have been deleted.")
         self._current_boost = tf.Variable(
             tf.zeros_like(self._sys._Q, dtype=self._sys._Q.dtype)
-        ) 
+        )
 
 
     def action_spec(self):
@@ -136,7 +136,7 @@ class stellarEnv(py_environment.PyEnvironment):
         self._current_boost[-1, 3:].assign(
             tf.constant(action, dtype=self._current_boost.dtype)
         )
-        
+
         # Performing a system step
         Q = self._sys._Q
         Q = self._sys._solver_rkf(Q, self._accelerations_plus_boost)
@@ -166,17 +166,17 @@ if __name__ == "__main__":
     import sys
     if "..\\" not in sys.path: sys.path.append("..\\")
 
-    
+
     AU, ED = nBodySystem._AU, nBodySystem._ED
-    
+
     X = np.array([
-        [0., 0.,    0.], # Sun 
+        [0., 0.,    0.], # Sun
         [1., 0.,    0.], # Earth
         [0., 1.524, 0.]  # Mars
     ])
 
     V = np.array([
-        [0.,           0., 0.],  # Sun 
+        [0.,           0., 0.],  # Sun
         [0., 29290./AU*ED, 0.],  # Earth
         [27070./AU*ED, 0., 0.],  # Mars
     ])

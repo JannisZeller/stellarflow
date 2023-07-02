@@ -1,29 +1,18 @@
-# %% Imports
-#-------------------------------------------------------------------------------
-
 from typing import Callable, Tuple
-
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-#-------------------------------------------------------------------------------
 
-
-
-#%% Implementation
-# Implementation of the simulation class
-#-------------------------------------------------------------------------------
-
-class nBodySystem():
+class NBodySystem():
     """This class embodies a system of stellar bodies, which can be propagated via the step or simulate methods.
     """
 
     _AU: float=149597870700.
     _ED: float=86400.
 
-    def __init__(self, 
+    def __init__(self,
         locations:  np.ndarray,
         velocities: np.ndarray,
         masses:     np.ndarray,
@@ -56,7 +45,7 @@ class nBodySystem():
 
         ## Setting up Q-Tensor for internal processing
         self._Q = tf.Variable(
-            np.concatenate([locations, velocities], axis=1), 
+            np.concatenate([locations, velocities], axis=1),
             dtype=tf.float32
         )
         self._Q_hist = tf.cast(tf.expand_dims(self._Q, axis=0), dtype=tf.float32)
@@ -66,7 +55,7 @@ class nBodySystem():
             f"Locations and masses must be of the same length and masses must \
                 be of shape (N,), but got locations.shape={locations.shape} \
                     and masses.shape={masses.shape}."
-        self._M = self._reshape_masses(masses) 
+        self._M = self._reshape_masses(masses)
 
 
     ## Reshaping Masses for vectorization
@@ -77,12 +66,12 @@ class nBodySystem():
         M = tf.boolean_mask(M, self._mask, axis=0)
         return tf.reshape(M, (self._mask_reps, -1, 1))
 
-    ## Reshaping Mask for vectorization -> Which body is affected by which 
+    ## Reshaping Mask for vectorization -> Which body is affected by which
     #  other?
     def _create_mask(self, N: int):
         mask_reps = int(N)
         mask_len  = int(mask_reps*mask_reps)
-        mask = tf.tile([False] + (mask_reps)*[True], [mask_reps])[:mask_len] 
+        mask = tf.tile([False] + (mask_reps)*[True], [mask_reps])[:mask_len]
         return mask_reps, mask_len, mask
 
 
@@ -91,14 +80,14 @@ class nBodySystem():
     def _pairwise_distances(self, X: tf.Tensor) -> tf.Tensor:
         """Helper function to calculate the pairwise distances of the locations matrix.
         """
-        ## TODO: Could be possibly further optimized. The current solution 
-        #  calculates all N^2 distances, but N^2/2 would be sufficient when 
+        ## TODO: Could be possibly further optimized. The current solution
+        #  calculates all N^2 distances, but N^2/2 would be sufficient when
         #  switching the signs correctly.
         return tf.expand_dims(X, axis=0) - tf.expand_dims(X, axis=1)
 
 
     ## Vectorized acceleration calculation. Acts on the 6D-Tensor Q and returns
-    #  dQ which acts as the "velocity" for Q (but the acceleration is the 
+    #  dQ which acts as the "velocity" for Q (but the acceleration is the
     #  actual stuff that is computed).
     @tf.function
     def _acceleration(self, Q: tf.Tensor) -> tf.Tensor:
@@ -113,7 +102,7 @@ class nBodySystem():
 
         ## Calculating |xi-xj|^(-3)
         d_inv_cube = tf.pow(tf.reduce_sum(D*D, axis=-1, keepdims=True) + self.smooth, -3./2.)
-        
+
         ## Calculating pairwise Acceleration ("target mass" irrelevant)
         dV = self._M * D * d_inv_cube
 
@@ -123,7 +112,7 @@ class nBodySystem():
         ## Combining to R6 acceleration
         #  The own masses are not needed because of the formula in "../README.md"
         dQ = tf.concat([Q[:, 3:], dV], axis=-1)
-        
+
         return dQ
 
 
@@ -161,7 +150,7 @@ class nBodySystem():
         self._Q = Q
         self._Q_hist = tf.concat([self._Q_hist, [Q]], axis=0)
 
-    
+
     ## Performing a fixed number of steps.
     def simulation(self, steps: int, algo: str="rk4") -> None:
         for _ in tqdm(range(steps)):
@@ -186,24 +175,24 @@ class nBodySystem():
         ax = fig.add_subplot(111, projection='3d')
         for idx in sample:
             ax.plot(
-                self._Q_hist[:, idx, 0], 
-                self._Q_hist[:, idx, 1], 
+                self._Q_hist[:, idx, 0],
+                self._Q_hist[:, idx, 1],
                 self._Q_hist[:, idx, 2]
             )
-    
+
 
     ## 2D-Plotting
     def plot_history_2d(self, ZSIZE: bool=False, n_sample: int=100, figsize: Tuple[int, int]=(5, 5)) -> None:
         def plot_single_2d(n, ZSIZE=ZSIZE):
             if ZSIZE:
                 plt.scatter(
-                    self._Q_hist[:, n, 0], 
-                    self._Q_hist[:, n, 1], 
+                    self._Q_hist[:, n, 0],
+                    self._Q_hist[:, n, 1],
                     0.75 * np.clip(self._Q_hist[:, n, 2].numpy(), a_min=1e-10, a_max=np.inf)
                 )
-            else: 
+            else:
                 plt.scatter(
-                    self._Q_hist[:, n, 0], 
+                    self._Q_hist[:, n, 0],
                     self._Q_hist[:, n, 1]
                 )
         plt.figure(figsize=figsize)
