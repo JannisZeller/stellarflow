@@ -3,9 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
-from . import utils
-
-# TODO: Unify Plots, Relative Imports with circular...
+from src.solver import equations_of_motion_solver_factory
 
 
 class NBodySystem:
@@ -36,14 +34,16 @@ class NBodySystem:
 
         if masses.shape[0] != initial_locations.shape[0] or masses.ndim != 1:
             message = (
-                f"Locations and masses must be of the same length and masses must"
+                "Locations and masses must be of the same length and masses must"
                 + f"be of shape (N,), but got locations.shape={initial_locations.shape}"
                 + f"and masses.shape={masses.shape}."
             )
             raise ValueError(message)
 
+        self.body_count = initial_locations.shape[0]
+
         self._mask_reps, self._mask_len, self._mask = self._create_mask(
-            initial_locations.shape[0]
+            self.body_count
         )
         self.state_matrix = tf.Variable(
             np.concatenate([initial_locations, initial_velocities], axis=1),
@@ -63,7 +63,7 @@ class NBodySystem:
 
     def _reshape_masses(self, masses: np.ndarray) -> tf.Tensor:
         """Reshaping Masses for vectorization."""
-        if self._mask == None:
+        if self._mask is None:
             raise ReferenceError("Mask was not created.")
         M = tf.Variable(masses, dtype=tf.float32)
         M = tf.tile(M, [self._mask_reps])
@@ -113,7 +113,7 @@ class NBodySystem:
     ) -> None:
         """Performing a fixed number of steps."""
         self.smooth = smooth
-        solver = utils.equations_of_motion_solver_factory(algorithm, step_size)
+        solver = equations_of_motion_solver_factory(algorithm, step_size)
         for _ in tqdm(range(steps)):
             self._step(solver)
 
@@ -125,7 +125,3 @@ class NBodySystem:
         self.state_history = tf.concat(
             [self.state_history, [self.state_matrix]], axis=0
         )
-
-    def reset(self):
-        self.state_matrix = self.state_history[0]
-        self.state_history = [self.state_matrix]

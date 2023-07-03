@@ -1,9 +1,5 @@
 import tensorflow as tf
-import matplotlib.pyplot as plt
-import numpy as np
 from typing import Callable
-
-# from . import n_body_system
 
 
 def equations_of_motion_solver_factory(
@@ -71,58 +67,3 @@ def equations_of_motion_solver_factory(
 
     else:
         raise ValueError('`algorithm` must be of ["rk4", "rkf"]')
-
-
-def plot_system_history(system, mode: str = "3d", **kwargs):    # : n_body_system.NBodySystem
-    """A plotting utility to plot an NBodySystem."""
-
-    if mode not in ["3d", "2d"]:
-        raise ValueError('`mode` must be of ["3d", "2d"].')
-
-    if 'figsize' in kwargs:
-        figsize = kwargs.get('figsize')
-    else:
-        figsize = (7, 7)
-
-    # Sampling a subset of indices of bodies of potentially very large systems.
-    if 'n_sample' in kwargs:
-        if system.state_history.shape[1] > kwargs.get('n_sample'):
-            sample = np.random.choice(
-                np.arange(system.state_history.shape[1]),
-                size=kwargs.get('n_sample'),
-                replace=False,
-            )
-    else:
-        sample = range(system.state_history.shape[1])
-
-    if mode == "3d":
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111, projection="3d")
-        for idx in sample:
-            ax.plot(
-                system.state_history[:, idx, 0],
-                system.state_history[:, idx, 1],
-                system.state_history[:, idx, 2],
-            )
-
-    if mode == "2d":
-
-        def plot_single_2d(n):
-            if 'zsize' in kwargs:
-                plt.scatter(
-                    system.state_history[:, n, 0],
-                    system.state_history[:, n, 1],
-                    0.75
-                    * np.clip(
-                        system.state_history[:, n, 2].numpy(), a_min=1e-10, a_max=np.inf
-                    ),
-                )
-            else:
-                plt.scatter(
-                    system.state_history[:, n, 0], system.state_history[:, n, 1]
-                )
-
-        plt.figure(figsize=figsize)
-        for idx in sample:
-            plot_single_2d(idx)
-        plt.show()
