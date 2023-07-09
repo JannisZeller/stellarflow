@@ -9,12 +9,6 @@ from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 from tf_agents.environments import utils
 
-import sys
-if "..\\" not in sys.path: sys.path.append("..\\")
-
-## Import custom modules
-from system.nBodySystem import nBodySystem
-
 #-------------------------------------------------------------------------------
 
 
@@ -26,7 +20,6 @@ class stellarEnv(py_environment.PyEnvironment):
             initial_location: np.ndarray,
             initial_velocity: np.ndarray,
             target_point:   np.ndarray,
-            stfSystem:      nBodySystem,
             target_point_relative:      bool=False,
             target_point_relative_to:   int=None,
             reward_factor_boost:           float=1.0,
