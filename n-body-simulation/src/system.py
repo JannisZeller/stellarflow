@@ -10,8 +10,8 @@ class NBodySystem:
     """
     This class embodies a system of stellar bodies, which can be propagated
     via the step or simulate methods. The unit system is set to length in
-    astronomical units, an time in earth days. The suitable constants are
-    provided within the class
+    astronomical units, mass in sun-masses and time in earth days.
+    The suitable gravitational constant is provided within the class.
     """
 
     astronomical_unit: float = 149597870700.0
