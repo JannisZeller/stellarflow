@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
 from astropy.units import day as EarthDay
-from datetime import date
 from astropy.time import Time as AstroTime
+from datetime import date
 
 from .states import cartesians_to_array, get_cartesian_positions
 from .data import get_masses

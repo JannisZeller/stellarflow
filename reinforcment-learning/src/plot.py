@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from seaborn import scatterplot
+import matplotlib.pyplot as plt
 
 from .sunsystem import SunSystem
 from .walkers import Walker
@@ -29,6 +31,10 @@ def generate_plot_df_system(system: SunSystem):
 
     df["body"] = names
 
+    sizes = np.ones(df.shape[0])
+    sizes[df["body"] == "sun"] = 5
+    df["size"] = sizes
+
     return df
 
 
@@ -36,6 +42,7 @@ def generate_plot_df_walker(walker: Walker):
     df = pd.DataFrame(walker.state_history[:, :3].numpy())
     df.columns = ["x", "y", "z"]
     df["body"] = walker.name
+    df["size"] = 1
     return df
 
 
@@ -43,11 +50,17 @@ class Plotter():
 
     def __init__(self, **kwargs):
         if "system" in kwargs and "walker" in kwargs:
-            self.df = generate_plot_df(kwargs.get("system"), kwargs.get("walker"))
+            system = kwargs.get("system")
+            walker = kwargs.get("walker")
+            self.df = generate_plot_df(system, walker)
+            self.n_bodies = system.n_bodies + 1
         elif "walker" in kwargs:
             self.df = generate_plot_df_walker(kwargs.get("walker"))
+            self.n_bodies = 1
         elif "system" in kwargs:
-            self.df = generate_plot_df_system(kwargs.get("system"))
+            system = kwargs.get("system")
+            self.df = generate_plot_df_system()
+            self.n_bodies = system.n_bodies
 
 
     def draw(self, mode: str="2d"):
@@ -58,14 +71,34 @@ class Plotter():
 
 
     def plot3d(self):
-        fig = px.line_3d(self.df, x="x", y="y", z="z", color="body")
-        fig.update_layout(
-            scene = dict(zaxis = dict(nticks=4, range=[-1,1]))
+        fig1 = px.scatter_3d(
+            self.df[self.df["body"]=="sun"], x="x", y="y", z="z", color="body",
+            size="size", color_discrete_sequence=["orange"]
         )
-        fig.show()
-        return fig
+        fig2 = px.line_3d(
+            self.df[self.df["body"]!="sun"], x="x", y="y", z="z", color="body",
+        )
+        fig3 = go.Figure(data=fig1.data + fig2.data)
+        fig3.update_layout(
+            scene = {
+                'zaxis': {
+                    'nticks': 4,
+                    'range': [-1, 1]
+                }
+            }
+        )
+        fig3.show()
+        return fig3
 
 
     def plot2d(self):
-        fig = scatterplot(self.df, x="x", y="y", hue="body")
+        fig = scatterplot(self.df, x="x", y="y", hue="body", size="size")
+        handles, leg = fig.get_legend_handles_labels()
+        plt.legend(
+            handles[0 : self.n_bodies+1],
+            leg[0 : self.n_bodies+1],
+            loc=2,
+            borderaxespad=0.
+        )
+        plt.show(fig)
         return fig
