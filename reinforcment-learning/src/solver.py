@@ -2,7 +2,7 @@ import tensorflow as tf
 from typing import Callable
 
 
-class Solver():
+class Solver:
     """
     Runge-Kutta-style solver for integrating dQ = dQ(Q).
     Q represents the state matrix (x, v) with positions x and velocities v and

@@ -4,7 +4,7 @@ import tensorflow as tf
 from .sunsystem import SunSystem
 
 
-class Walker():
+class Walker:
     """
     Class for "test-bodies", e. g. spacecrafts or planets that are meant
     to be influenced by some reference-syste (instance of SunSystem`)

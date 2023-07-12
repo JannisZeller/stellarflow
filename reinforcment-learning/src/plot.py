@@ -46,7 +46,7 @@ def generate_plot_df_walker(walker: Walker):
     return df
 
 
-class Plotter():
+class Plotter:
 
     def __init__(self, **kwargs):
         if "system" in kwargs and "walker" in kwargs:
@@ -59,18 +59,18 @@ class Plotter():
             self.n_bodies = 1
         elif "system" in kwargs:
             system = kwargs.get("system")
-            self.df = generate_plot_df_system()
+            self.df = generate_plot_df_system(system)
             self.n_bodies = system.n_bodies
 
 
-    def draw(self, mode: str="2d"):
+    def draw(self, mode: str="2d", **kwargs):
         if mode == "2d":
-            self.plot2d()
+            self.plot2d(**kwargs)
         if mode == "3d":
-            self.plot3d()
+            self.plot3d(**kwargs)
 
 
-    def plot3d(self):
+    def plot3d(self, zrange: list[int]=[-3, 3]):
         fig1 = px.scatter_3d(
             self.df[self.df["body"]=="sun"], x="x", y="y", z="z", color="body",
             size="size", color_discrete_sequence=["orange"]
@@ -83,7 +83,7 @@ class Plotter():
             scene = {
                 'zaxis': {
                     'nticks': 4,
-                    'range': [-1, 1]
+                    'range': zrange
                 }
             }
         )

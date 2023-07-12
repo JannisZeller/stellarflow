@@ -22,7 +22,8 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
             target: np.ndarray,
             step_size: float=1.0,
             reward_factor_boost: float=1.0,
-            reward_factor_target_distance: float=1.0):
+            reward_factor_target_distance: float=1.0,
+            max_iters: int=1000):
 
         self.walker = walker
         if not hasattr(walker, "reference_system"):
@@ -37,27 +38,29 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
         self.reward_factor_target_distance = reward_factor_target_distance
 
         self.target = tf.constant(target, dtype=tf.float32)
+
         self.n_iter = 0
+        self.max_iters = max_iters
 
         ## Providing for tfa-py_env
         #  TODO: Better values for minimum and maximum
         self._action_spec = array_spec.BoundedArraySpec(
             shape=(3,),
             dtype=self.walker.state_vector.numpy().dtype,
-            minimum=-1e-31,
-            maximum=1e-31,
+            minimum=-0.0001,  # TODO: Interplay with Mass
+            maximum= 0.0001,  # TODO: Interplay with Mass
             name="boost"
         )
         self._observation_spec = {
             "system-positions": array_spec.ArraySpec(
                 self.reference_system.positions_tensor.shape,
                 dtype=self.reference_system.positions_tensor.numpy().dtype,
-                name="System Positions"
+                name="system-positions"
             ),
             "walker-state": array_spec.ArraySpec(
                 self.walker.state_vector.shape,
                 dtype=self.walker.state_vector.numpy().dtype,
-                name="Walker Positions"
+                name="walker-state"
             ),
             "target": array_spec.ArraySpec(
                 self.target.shape,
@@ -102,6 +105,8 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
             "walker-state": self.walker.state_vector.numpy(),
             "target": self.target.numpy()
         }
+        self.n_iter = 0
+        # print("Resetted WalkerSystemEnv.")
         return ts.restart(self._state)
 
 
@@ -121,7 +126,7 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
     def walker_accelerations_plus_boost(self, state_vector):
         gravitation = self.walker.compute_acceleration(state_vector)
         boost = self._current_boost / self.walker.mass
-        return gravitation + boost
+        return gravitation + boost  # TODO: Interplay with action bounds
 
 
     def _step(self, action: np.ndarray):
@@ -147,6 +152,9 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
         )
         self.reference_system.propagate()
 
+        # if self.n_iter % (self.max_iters // 10) == 0:
+        #     print(f"Iter: {self.n_iter} -- Date: {self.reference_system.time}")
+
 
         self._state = {
             "system-positions": self.reference_system.positions_tensor.numpy(),
@@ -154,18 +162,16 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
             "target": self.target.numpy()
         }
 
+        distance = self.compute_target_distance()
+        reward = (
+            - self.reward_factor_boost * np.linalg.norm(action)
+            - self.reward_factor_target_distance * distance
+        )
+
         # Bounding episode length
-        if self.n_iter > 1000:
-            reward = 0.0
+        if self._episode_ended or self.n_iter >= self.max_iters:
             return ts.termination(self._state, reward)
 
         # Rewarding with boost length and distance to target
         else:
-            distance = self.compute_target_distance()
-            reward = (
-                - self.reward_factor_boost * np.linalg.norm(action)
-                - self.reward_factor_target_distance * distance
-            )
-            return ts.transition(
-                self._state, reward=reward, discount=1.0
-            )
+            return ts.transition(self._state, reward=reward, discount=1.0)
