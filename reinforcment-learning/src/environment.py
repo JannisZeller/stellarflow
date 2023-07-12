@@ -4,12 +4,10 @@ import tensorflow as tf
 from tf_agents.environments import py_environment
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
-# from tf_agents.environments import utils
-
-from typing import Callable
 
 from .sunsystem import SunSystem
 from .walkers import Walker
+from .solver import Solver
 
 
 
@@ -20,16 +18,20 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
     def __init__(self,
             walker: Walker,
             reference_system :SunSystem,
-            solver: Callable,
+            solver: Solver,
             target: np.ndarray,
-            dt: float=1.0,
+            step_size: float=1.0,
             reward_factor_boost: float=1.0,
             reward_factor_target_distance: float=1.0):
 
         self.walker = walker
+        if not hasattr(walker, "reference_system"):
+            walker.set_reference_system(reference_system)
         self.reference_system = reference_system
         self.solver = solver
-        self.dt = dt
+
+        self.step_size = step_size
+        self.set_time_step_size()
 
         self.reward_factor_boost = reward_factor_boost
         self.reward_factor_target_distance = reward_factor_target_distance
@@ -86,6 +88,11 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
         return self._observation_spec
 
 
+    def set_time_step_size(self):
+        self.reference_system.step_size = self.step_size
+        self.solver.step_size = self.step_size
+
+
     def _reset(self):
         self._episode_ended = False
         self.reference_system._reset()
@@ -98,7 +105,7 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
         return ts.restart(self._state)
 
 
-    def _compute_target_distance(self):
+    def compute_target_distance(self):
         # TODO: Target point might need to be a function of steps, which
         #   needs to get hand designed for flexibility (e. g. Lagrange Points).
         return np.linalg.norm(self.target - self.walker.state_vector[:3])
@@ -111,7 +118,7 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
 
 
     @tf.function
-    def _walker_accelerations_plus_boost(self, state_vector):
+    def walker_accelerations_plus_boost(self, state_vector):
         gravitation = self.walker.compute_acceleration(state_vector)
         boost = self._current_boost / self.walker.mass
         return gravitation + boost
@@ -132,13 +139,13 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
         # Propagating
         self.walker.state_vector = self.solver(
             self.walker.state_vector,
-            self._walker_accelerations_plus_boost
+            self.walker_accelerations_plus_boost
         )
         self.walker.state_history = tf.concat(
             [self.walker.state_history, [self.walker.state_vector]],
             axis=0
         )
-        self.reference_system.propagate(self.dt)
+        self.reference_system.propagate()
 
 
         self._state = {
@@ -154,7 +161,7 @@ class WalkerSystemEnv(py_environment.PyEnvironment):
 
         # Rewarding with boost length and distance to target
         else:
-            distance = self._compute_target_distance()
+            distance = self.compute_target_distance()
             reward = (
                 - self.reward_factor_boost * np.linalg.norm(action)
                 - self.reward_factor_target_distance * distance

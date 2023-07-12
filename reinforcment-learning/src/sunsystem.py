@@ -25,7 +25,12 @@ class SunSystem():
     smooth: float = 1e-20
 
 
-    def __init__(self, bodies: list[str], initial_time: AstroTime=None):
+    def __init__(
+            self,
+            bodies: list[str],
+            initial_time: AstroTime=None,
+            step_size: float=1.0
+        ):
         if "sun" not in bodies:
             bodies.append("sun")
         self.bodies = bodies
@@ -35,6 +40,8 @@ class SunSystem():
             tf.constant(self.masses, dtype=tf.float32),
             (-1, 1)
         )
+
+        self.step_size = step_size
         if initial_time is not None:
             self.set_state(initial_time)
         else:
@@ -84,10 +91,10 @@ class SunSystem():
         self.time = time
 
 
-    def propagate(self, dt: float=1):
+    def propagate(self):
         if not hasattr(self, 'time'):
             raise StateError("The system has no (initial) time set yet.")
-        next_time = self.time + dt * EarthDay
+        next_time = self.time + self.step_size * EarthDay
         self.set_state(next_time)
         self.positions_history = tf.concat(
             [self.positions_history, [self.positions_tensor]], axis=0

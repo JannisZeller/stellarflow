@@ -64,3 +64,11 @@ def cartesians_to_array(
         else:
             array_list.append(cartesian_as_array)
     return np.vstack(array_list)
+
+
+def get_body_state(body: str, time: AstroTime,):
+    cartesians = get_cartesian_positions([body], time)
+    position = cartesians_to_array(cartesians).squeeze()
+    cartesians = get_cartesian_velocities([body], time)
+    velocity = cartesians_to_array(cartesians).squeeze()
+    return {"position": position, "velocity": velocity}

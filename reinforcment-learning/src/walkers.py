@@ -13,19 +13,19 @@ class Walker():
         self,
         initial_position: np.ndarray,
         initial_velocity: np.ndarray,
-        reference_system: SunSystem,
+        reference_system: SunSystem=None,
         name: str="walker",
         mass: float=None
     ):
         self.position = tf.constant(initial_position, dtype=tf.float32)
         self.velocity = tf.constant(initial_velocity, dtype=tf.float32)
-        self.state_history = tf.concat([self.position, self.velocity], axis=-1)
-        self.state_vector = tf.squeeze(self.state_history)
+        self.state_vector = tf.concat([self.position, self.velocity], axis=-1)
+        self.state_history = tf.expand_dims(self.state_vector, axis=0)
         self.mass = mass
         self.mass_history = [mass]
-        self.reference_system = reference_system
         self.name = name
-
+        if reference_system is not None:
+            self.reference_system = reference_system
 
     def _reset(self):
         """Resets the walker to the initial state.
@@ -33,6 +33,10 @@ class Walker():
         """
         self.state_vector = self.state_history[0, ...]
         self.state_history = tf.expand_dims(self.state_vector, 0)
+
+
+    def set_reference_system(self, reference_system: SunSystem):
+        self.reference_system = reference_system
 
 
     @tf.function
