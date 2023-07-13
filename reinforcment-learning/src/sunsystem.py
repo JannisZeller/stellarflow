@@ -17,11 +17,17 @@ class SunSystem():
     A base class for describing the sun system as a system of massive bodies.
     Provides a gravitational field for calculating accellearation of "test"-
     bodies at different locations.
-    """
-    # Gravitational constant for length in astronomical units, mass in
-    #   sun-masses and time in earth days.
+
+    Properties
+    ----------
     gravitational_constant: float = 0.0002959211565456235
-    # Smoothing the gravitational field to prevent 0-division.
+        Gravitational constant for length in astronomical units, mass in
+        sun-masses and time in earth days.
+    smooth: float = 1e-20
+        Smoothing the gravitational field to prevent 0-division.
+    """
+
+    gravitational_constant: float = 0.0002959211565456235
     smooth: float = 1e-20
 
 
@@ -29,9 +35,29 @@ class SunSystem():
             self,
             bodies: list[str],
             initial_time: AstroTime=None,
-            step_size: float=1.0
+            step_size: float=1.0,
+            add_sun: bool=False
         ):
-        if "sun" not in bodies:
+        """
+        Constructs a `SunSystem` object for a `Walker` object to move in.
+
+        Parameters
+        ----------
+        bodies: list[str]
+            List of body names (like "earth", "sun" etc.) to be included in the
+            system. Must be available `data.get_masses` (you can easily add
+            more there yourself) and - more importantly - in Astropy's
+            `get_body_barycentric_posvel`.
+        initial_time: astropy.time.Time=None
+            An initial time for the propagation of the system. If `None` the
+            current date is used.
+        step_size: float=1.0
+            Step size for the propagation of the system in Earth-Days.
+        add_sun: bool=True
+            If `False` the sun is not added to the system, even if it is not
+            included in `bodies`. Otherwise it will get added automatically.
+        """
+        if "sun" not in bodies and add_sun:
             bodies.append("sun")
         self.bodies = bodies
         self.n_bodies = len(bodies)
