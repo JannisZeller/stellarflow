@@ -8,4 +8,5 @@ from .solver import Solver  # noqa: F401
 
 from .plot import Plotter  # noqa: F401
 
-from .environment import WalkerSystemEnv  # noqa: F401
+from . import env  # noqa: F401
+from . import env_wrappers  # noqa: F401

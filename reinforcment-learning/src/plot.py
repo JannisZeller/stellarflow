@@ -9,12 +9,17 @@ from .sunsystem import SunSystem
 from .walkers import Walker
 
 
-def generate_plot_df(system: SunSystem, walker: Walker) ->pd.DataFrame:
+def generate_plot_df(
+        system: SunSystem,
+        walker: Walker,
+        target: np.ndarray
+    ) ->pd.DataFrame:
     """Generates a dataframe for a system or a walker for plotting purposes.
     """
     df_system = generate_plot_df_system(system)
     df_walker = generate_plot_df_walker(walker)
-    return pd.concat([df_system, df_walker], axis=0)
+    df_target = generate_plot_df_target(target)
+    return pd.concat([df_system, df_walker, df_target], axis=0)
 
 
 def generate_plot_df_system(system: SunSystem):
@@ -46,21 +51,54 @@ def generate_plot_df_walker(walker: Walker):
     return df
 
 
+def generate_plot_df_target(target: np.ndarray):
+    try:
+        target = target.numpy()
+    except AttributeError:
+        pass
+    df = pd.DataFrame(target.reshape(1, -1))
+    df.columns = ["x", "y", "z"]
+    df["body"] = "target"
+    df["size"] = 1
+    return df
+
+
 class Plotter:
 
+    n_bodies = 0
+
     def __init__(self, **kwargs):
-        if "system" in kwargs and "walker" in kwargs:
-            system = kwargs.get("system")
+        if "walker" in kwargs:
             walker = kwargs.get("walker")
-            self.df = generate_plot_df(system, walker)
-            self.n_bodies = system.n_bodies + 1
-        elif "walker" in kwargs:
-            self.df = generate_plot_df_walker(kwargs.get("walker"))
-            self.n_bodies = 1
-        elif "system" in kwargs:
+            df_walker = generate_plot_df_walker(walker)
+            self.df = df_walker
+            self.n_bodies += 1
+
+        if "system" in kwargs:
             system = kwargs.get("system")
-            self.df = generate_plot_df_system(system)
-            self.n_bodies = system.n_bodies
+            df_system = generate_plot_df_system(system)
+            self.n_bodies += system.n_bodies
+            self.df = pd.concat([self.df, df_system], axis=0)
+
+        if "target" in kwargs:
+            target = kwargs.get("target")
+            df_target = generate_plot_df_target(target)
+            self.n_bodies += system.n_bodies
+            self.df = pd.concat([self.df, df_target], axis=0)
+
+        if "env" in kwargs:
+            env = kwargs.get("env")
+            system = env.system
+            walker = env.walker
+            target = env.target
+            self.df = generate_plot_df(system, walker, target)
+            self.n_bodies = system.n_bodies + 2
+
+        if not hasattr(self, "df"):
+            raise ValueError(
+                "At least pass one thing to plot. " +
+                "Typo with the kwarg-names?"
+            )
 
 
     def draw(self, mode: str="2d", **kwargs):
@@ -71,15 +109,25 @@ class Plotter:
 
 
     def plot3d(self, zrange: list[int]=[-3, 3]):
-        fig1 = px.scatter_3d(
-            self.df[self.df["body"]=="sun"], x="x", y="y", z="z", color="body",
-            size="size", color_discrete_sequence=["orange"]
+        fig_sun = px.scatter_3d(
+            self.df[self.df["body"] == "sun"],
+            x="x", y="y", z="z", color="body",
+            size="size",
+            color_discrete_sequence=["orange"]
         )
-        fig2 = px.line_3d(
-            self.df[self.df["body"]!="sun"], x="x", y="y", z="z", color="body",
+        fig_target = px.scatter_3d(
+            self.df[self.df["body"] == "target"],
+            x="x", y="y", z="z",
+            size="size",
+            color_discrete_sequence=["purple"]
         )
-        fig3 = go.Figure(data=fig1.data + fig2.data)
-        fig3.update_layout(
+        fig_system = px.line_3d(
+            self.df[self.df["body"].isin(["sun", "target"]) == False],   # noqa: E712
+            x="x", y="y", z="z",
+            color="body",
+        )
+        fig = go.Figure(data=fig_sun.data + fig_target.data + fig_system.data)
+        fig.update_layout(
             scene = {
                 'zaxis': {
                     'nticks': 4,
@@ -87,8 +135,8 @@ class Plotter:
                 }
             }
         )
-        fig3.show()
-        return fig3
+        fig.show()
+        return fig
 
 
     def plot2d(self):
@@ -102,3 +150,26 @@ class Plotter:
         )
         plt.show(fig)
         return fig
+
+
+def main():
+    from .states import get_body_state
+    from datetime import date
+    from astropy.time import Time
+
+    now = date.today()
+    time = Time(now.strftime(r'%Y-%m-%d %H:%M'), scale="utc")
+
+    system = SunSystem(["earth", "mars"])
+
+    walker_position, walker_velocity = get_body_state("mars", time).values()
+    walker = Walker(walker_position, walker_velocity, mass=1., name="mars")
+
+    target = np.array([0, 0, 1])
+
+    plotter = Plotter(system=system, walker=walker, target=target)
+    plotter.draw()
+
+
+if __name__ == "__main__":
+    main()

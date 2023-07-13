@@ -12,7 +12,7 @@ class StateError(Exception):
     pass
 
 
-class SunSystem():
+class SunSystem:
     """
     A base class for describing the sun system as a system of massive bodies.
     Provides a gravitational field for calculating accellearation of "test"-
@@ -36,7 +36,7 @@ class SunSystem():
             bodies: list[str],
             initial_time: AstroTime=None,
             step_size: float=1.0,
-            add_sun: bool=False
+            add_sun: bool=True
         ):
         """
         Constructs a `SunSystem` object for a `Walker` object to move in.
