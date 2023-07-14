@@ -1,11 +1,9 @@
 
-from tf_agents.environments import (
-    tf_py_environment,
-    tf_environment,
-    validate_py_environment
-)
+from tf_agents.environments import tf_environment
+from tf_agents.environments import tf_py_environment
+from tf_agents.environments.utils import validate_py_environment
 
-from .env import WalkerSystemEnv
+from .walker_system_env import WalkerSystemEnv
 
 
 def tfpy_env_wrapper(

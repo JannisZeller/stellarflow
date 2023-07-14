@@ -4,8 +4,7 @@ from astropy.units import day as EarthDay
 from astropy.time import Time as AstroTime
 from datetime import date
 
-from .states import cartesians_to_array, get_cartesian_positions
-from .data import get_masses
+from ..data import cartesians_to_array, get_cartesian_positions, get_masses
 
 
 class StateError(Exception):

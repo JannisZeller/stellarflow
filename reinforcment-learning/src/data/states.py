@@ -3,7 +3,7 @@ from astropy.time import Time as AstroTime
 from astropy.coordinates import CartesianRepresentation
 from astropy.coordinates import get_body_barycentric_posvel
 
-from .config import config
+from ..config import config
 
 
 def get_x_rotation_matrix(theta: float=23.45*np.pi / 180.):
@@ -26,7 +26,7 @@ def get_cartesians(
     """
     cartesians = {}
     for body in bodies:
-        cartesians[body] = get_body_barycentric_posvel(body, time)[idx] # Returns AU and AU / EarthDay                  # noqa: E501
+        cartesians[body] = get_body_barycentric_posvel(body, time)[idx] # Returns AU and AU / EarthDay  # noqa: E501
     return cartesians
 
 
