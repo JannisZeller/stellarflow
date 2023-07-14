@@ -7,6 +7,7 @@ bodies_masses = {
     'earth':    5.9722e+24 / sun_mass_kg,
     'moon':     7.3420e+22 / sun_mass_kg,
     'mars':     6.4171e+23 / sun_mass_kg,
+    'venus':    4.8670e+24 / sun_mass_kg,
     'sun':      1.,
     'jupiter':  1.8981246e+27 / sun_mass_kg,
     'neptune':  1.024e+26 / sun_mass_kg

@@ -18,7 +18,8 @@ x_col, y_col, z_col = _position_colnames
 
 class Plotter:
 
-    n_bodies = 0
+    n_bodies: int=0
+    target_is_mooving: bool=False
 
     def __init__(self, object_dict: dict):
         """Provide a dictionary containing one or more of:
@@ -31,6 +32,7 @@ class Plotter:
         }
         ```
         """
+        self.n_bodies = 0
 
         if "walker" in object_dict:
             walker = object_dict.get("walker")
@@ -46,14 +48,16 @@ class Plotter:
 
         if "target" in object_dict:
             target = object_dict.get("target")
+            self.target_is_mooving = target.is_mooving
             df_target = generate_plot_data_target(target)
             self.n_bodies += system.n_bodies
             self.df = pd.concat([self.df, df_target], axis=0)
 
         if "env" in object_dict:
             env = object_dict.get("env")
+            self.target_is_mooving = env.target.is_mooving
             self.df = generate_plot_data_env(env)
-            self.n_bodies = system.n_bodies + 2
+            self.n_bodies = env.system.n_bodies + 2
 
         if not hasattr(self, "df"):
             raise ValueError(
@@ -74,18 +78,27 @@ class Plotter:
         df_sun = self.df[self.df[_body_colname] == "sun"]
         fig_sun = px.scatter_3d(
             df_sun,
-            x=x_col, y=y_col, z=z_col, color=_body_colname,
+            x=x_col, y=y_col, z=z_col,
+            color=_body_colname,
             size="size",
             color_discrete_sequence=["orange"]
         )
 
         df_target = self.df[self.df[_body_colname] == "target"]
-        fig_target = px.scatter_3d(
-            df_target,
-            x=x_col, y=y_col, z=z_col,
-            size="size",
-            color_discrete_sequence=["purple"]
-        )
+        if not self.target_is_mooving:
+            fig_target = px.scatter_3d(
+                df_target,
+                x=x_col, y=y_col, z=z_col,
+                size="size",
+                color_discrete_sequence=["purple"]
+            )
+        if self.target_is_mooving:
+            fig_target = px.line_3d(
+                df_target,
+                x=x_col, y=y_col, z=z_col,
+                color=_body_colname,
+                color_discrete_sequence=["purple"],
+            )
 
         df_system = self.df[ ~ self.df[_body_colname].isin(["sun", "target"])]
         fig_system = px.line_3d(

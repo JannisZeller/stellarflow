@@ -1,10 +1,13 @@
 import numpy as np
 import tensorflow as tf
+
 from astropy.units import day as EarthDay
 from astropy.time import Time as AstroTime
-from datetime import date
+
+
 
 from ..data import cartesians_to_array, get_cartesian_positions, get_masses
+from ..data.states import get_astrotime_now
 
 
 class StateError(Exception):
@@ -70,11 +73,20 @@ class SunSystem:
         if initial_time is not None:
             self.set_state(initial_time)
         else:
-            now = date.today()
-            initial_time = AstroTime(now.strftime(r'%Y-%m-%d %H:%M'), scale="utc")
+            initial_time = get_astrotime_now()
             self.set_state(initial_time)
-        self.positions_history = tf.expand_dims(self.positions_tensor, axis=0)
+        self.positions_history = tf.expand_dims(self.positions, axis=0)
         self.initial_time = initial_time
+
+
+    @property
+    def positions_numpy(self) -> np.ndarray:
+        return self.positions.numpy()
+
+
+    @property
+    def positions_history_numpy(self) -> np.ndarray:
+        return self.positions_history.numpy()
 
 
     def __repr__(self):
@@ -90,14 +102,18 @@ class SunSystem:
         TODO: Later maybe randomly initialize the initial time.
         """
         self.set_state(self.initial_time)
-        self.positions_history = tf.expand_dims(self.positions_tensor, axis=0)
+        self.positions_history = tf.expand_dims(self.positions, axis=0)
 
 
     def set_smooth(self, smooth: float):
         self.smooth = smooth
 
 
-    def compute_positions(self, time: AstroTime, verbose: bool=False) -> np.ndarray:
+    def _compute_initial_positions(
+            self,
+            time: AstroTime,
+            verbose: bool=False
+        ) -> np.ndarray:
         """Returns the positions of the internal bodies at a specific time.
         """
         cartesian_positions = get_cartesian_positions(self.bodies, time)
@@ -111,8 +127,8 @@ class SunSystem:
     def set_state(self, time: AstroTime):
         """Set the time and positions as the systems state.
         """
-        positions = self.compute_positions(time, verbose=False)
-        self.positions_tensor = tf.constant(positions, dtype=tf.float32)
+        positions = self._compute_initial_positions(time, verbose=False)
+        self.positions = tf.constant(positions, dtype=tf.float32)
         self.time = time
 
 
@@ -122,13 +138,13 @@ class SunSystem:
         next_time = self.time + self.step_size * EarthDay
         self.set_state(next_time)
         self.positions_history = tf.concat(
-            [self.positions_history, [self.positions_tensor]], axis=0
+            [self.positions_history, [self.positions]], axis=0
         )
 
 
     @tf.function
     def gravitational_field(self, x: tf.Tensor):
-        d_vectors = self.positions_tensor - x
+        d_vectors = self.positions - x
         distances = tf.pow(d_vectors, 2)
         # Calculating |xi-xj|^(-3)
         d_inv_cube = tf.pow(

@@ -17,11 +17,11 @@ def generate_plot_data_env(env: WalkerSystemEnv):
 
 
 def generate_plot_data_system(system: SunSystem):
-    n_datapoints = system.positions_history.shape[0]
+    n_datapoints = system.positions_history_numpy.shape[0]
     n_bodies = system.n_bodies
 
-    history_2d = system.positions_history.numpy().reshape(-1, 3)
-    df = pd.DataFrame(history_2d)
+    data = system.positions_history_numpy.reshape(-1, 3)
+    df = pd.DataFrame(data)
     df.columns = _position_colnames
 
     names = np.empty((n_bodies * n_datapoints,), object)
@@ -38,7 +38,7 @@ def generate_plot_data_system(system: SunSystem):
 
 
 def generate_plot_data_walker(walker: Walker):
-    df = pd.DataFrame(walker.state_history[:, :3].numpy())
+    df = pd.DataFrame(walker.state_history_numpy[:, :3])
     df.columns = _position_colnames
     df[_body_colname] = walker.name
     df["size"] = 1
@@ -46,7 +46,7 @@ def generate_plot_data_walker(walker: Walker):
 
 
 def generate_plot_data_target(target: Target):
-    df = pd.DataFrame(target.state_history[:, :3])
+    df = pd.DataFrame(target.state_history_numpy[:, :3])
     df.columns = _position_colnames
     df[_body_colname] = "target"
     df["size"] = 1

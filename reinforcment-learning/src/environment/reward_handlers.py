@@ -1,9 +1,12 @@
 import numpy as np
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from ._base import BaseHandler
 
 
-class RewardHanlder(ABC):
+class RewardHanlder(BaseHandler):
+
     def set_reward_factors(
             self,
             reward_factor_boost,
@@ -27,9 +30,13 @@ class RewardHanlder(ABC):
 
 
 class DistanceAndTargetReached(RewardHanlder):
+
+
     def compute_reward(self):
-        distance = np.linalg.norm(self.target - self.walker.state_vector[:3])
+
+        distance = self.compute_distance()
         boost = self.current_boost[3:]
+
         reward = np.exp(
             + self.reward_per_step
             + self.reward_factor_boost * np.linalg.norm(boost)
@@ -37,24 +44,33 @@ class DistanceAndTargetReached(RewardHanlder):
         )
         if distance < self.near_target_window:
             reward += self.reward_per_step_near_target
+
         return reward
 
 
+
 class ContinuousDistance(RewardHanlder):
+
     def compute_reward(self):
-        distance = np.linalg.norm(self.target - self.walker.state_vector[:3])
+
+        distance = self.compute_distance()
         boost = self.current_boost[3:]
+
         reward = np.exp(
             + self.reward_per_step
             + self.reward_factor_boost * np.linalg.norm(boost)
             + self.reward_factor_target_distance * distance
         )
+
         return reward
 
 
+
 class TargetReached(RewardHanlder):
+
     def compute_reward(self):
-        distance = np.linalg.norm(self.target - self.walker.state_vector[:3])
+        distance = self.compute_distance()
+
         if distance < self.near_target_window:
             return self.reward_per_step_near_target
         return 0.

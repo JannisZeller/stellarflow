@@ -17,15 +17,35 @@ class Walker:
         name: str="walker",
         mass: float=None
     ):
-        self.position = tf.constant(initial_position, dtype=tf.float32)
-        self.velocity = tf.constant(initial_velocity, dtype=tf.float32)
-        self.state_vector = tf.concat([self.position, self.velocity], axis=-1)
+        position = tf.constant(initial_position, dtype=tf.float32)
+        velocity = tf.constant(initial_velocity, dtype=tf.float32)
+        self.state_vector = tf.concat([position, velocity], axis=-1)
         self.state_history = tf.expand_dims(self.state_vector, axis=0)
         self.mass = mass
         self.mass_history = [mass]
         self.name = name
         if reference_system is not None:
             self.reference_system = reference_system
+
+    @property
+    def state_vector_numpy(self) -> np.ndarray:
+        return self.state_vector.numpy()
+
+
+    @property
+    def state_history_numpy(self) -> np.ndarray:
+        return self.state_history.numpy()
+
+
+    @property
+    def position(self) -> np.ndarray:
+        return self.state_vector[:3]
+
+
+    @property
+    def position_numpy(self) -> np.ndarray:
+        return self.position.numpy()
+
 
     def _reset(self):
         """Resets the walker to the initial state.
@@ -49,7 +69,6 @@ class Walker:
 
     def propagate(self, solver):
         self.state_vector = solver(self.state_vector, self.compute_acceleration)
-        self.position = self.state_vector[:3]
         self.state_history = tf.concat(
             [self.state_history, [self.state_vector]], axis=0
         )

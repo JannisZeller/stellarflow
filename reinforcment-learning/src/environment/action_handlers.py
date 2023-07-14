@@ -3,35 +3,40 @@ import tensorflow as tf
 
 from tf_agents.specs import array_spec
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+
+from ._base import BaseHandler
 
 
 
+class ActionHandler(BaseHandler):
 
+    current_boost: tf.Tensor
 
-class ActionHandler(ABC):
     @abstractmethod
     def action_to_boost(self, action):
         pass
 
+
     @abstractmethod
     def construct_action_spec(self, max_boost: float):
         self.max_boost = max_boost
-        pass
 
 
 
 
 class ContinuousAction(ActionHandler):
+
     def construct_action_spec(self, max_boost: float):
         super().construct_action_spec(max_boost)
         self._action_spec = array_spec.BoundedArraySpec(
             shape=(3,),
-            dtype=self.walker.state_vector.numpy().dtype,
+            dtype=self.walker.state_vector_numpy.dtype,
             minimum=-max_boost,  # TODO: Interplay with Mass
             maximum= max_boost,  # TODO: Interplay with Mass
             name="boost"
         )
+
 
     def action_to_boost(self, action):
         boost = tf.constant(action, dtype=self.current_boost.dtype)
@@ -39,7 +44,9 @@ class ContinuousAction(ActionHandler):
         self.current_boost[3:].assign(boost)
 
 
+
 class DiscreteAction(ActionHandler):
+
     def construct_action_spec(self, max_boost):
         super().construct_action_spec(max_boost)
         self._action_spec = array_spec.BoundedArraySpec(
@@ -61,6 +68,7 @@ class DiscreteAction(ActionHandler):
                 dtype=np.float32)
             )
 
+
     def action_to_boost(self, action):
         boost = tf.constant(
             self.available_boosts[action],
@@ -69,7 +77,9 @@ class DiscreteAction(ActionHandler):
         self.current_boost[3:].assign(boost)
 
 
+
 class OneDimDiscreteAction(DiscreteAction):
+
     def construct_action_spec(self, max_boost):
         super().construct_action_spec(max_boost)
         self._action_spec = array_spec.BoundedArraySpec(

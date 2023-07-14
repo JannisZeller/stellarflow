@@ -4,7 +4,6 @@ import tensorflow as tf
 from tf_agents.environments import py_environment
 from tf_agents.trajectories import time_step as ts
 
-
 from .action_handlers import ActionHandler
 from .observation_handlers import ObservationHandler
 from .reward_handlers import RewardHanlder
@@ -12,20 +11,21 @@ from .reward_handlers import RewardHanlder
 from ..components import Walker
 from ..components import SunSystem
 from ..components import Solver
+from ..components import Target
 
 
 class WalkerSystemEnv(
-    ActionHandler,
-    ObservationHandler,
-    RewardHanlder,
-    py_environment.PyEnvironment
+        ActionHandler,
+        ObservationHandler,
+        RewardHanlder,
+        py_environment.PyEnvironment
     ):
 
     def __init__(self,
         walker: Walker,
         system: SunSystem,
         solver: Solver,
-        target: tf.Tensor,
+        target: Target,
         step_size: float=1.0,
         reward_factor_boost: float=-1.0,
         reward_factor_target_distance: float=-1.0,
@@ -70,7 +70,7 @@ class WalkerSystemEnv(
 
         self.action_to_boost(action)
 
-        self.propagate_system_walker()
+        self.propagate_components()
 
         self.set_current_state()
 
@@ -104,18 +104,19 @@ class WalkerSystemEnv(
 
 
     def store_main_components(self, system, solver, walker, target):
-        self.walker = walker
-        if not hasattr(walker, "system"):
-            walker.set_reference_system(system)
         self.system = system
         self.solver = solver
         self.target = target
+        self.walker = walker
+        if not hasattr(walker, "system"):
+            walker.set_reference_system(system)
 
 
     def set_time_step_size(self, step_size):
         self.step_size = step_size
         self.system.step_size = step_size
         self.solver.step_size = step_size
+        self.target.step_size = step_size
 
 
     def handle_iterations(self, max_iters):
@@ -130,7 +131,7 @@ class WalkerSystemEnv(
         return gravitation + boost  # TODO: Interplay with action bounds
 
 
-    def propagate_system_walker(self):
+    def propagate_components(self):
         self.walker.state_vector = self.solver(
             self.walker.state_vector,
             self.walker_accelerations_plus_boost
@@ -140,3 +141,4 @@ class WalkerSystemEnv(
             axis=0
         )
         self.system.propagate()
+        self.target.propagate()

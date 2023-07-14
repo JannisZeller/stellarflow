@@ -1,16 +1,25 @@
 import numpy as np
+
 from astropy.time import Time as AstroTime
 from astropy.coordinates import CartesianRepresentation
 from astropy.coordinates import get_body_barycentric_posvel
+from datetime import date
 
 from ..config import config
 
 
-def get_x_rotation_matrix(theta: float=23.45*np.pi / 180.):
+def get_astrotime_now():
+    now = date.today()
+    time = AstroTime(now.strftime(r'%Y-%m-%d %H:%M'), scale="utc")
+    return time
+
+
+def get_x_rotation_matrix(theta: float=23.45):
+    theta_rad = theta * np.pi / 180.
     x_rotation_matrix = np.array(
         [[1,             0,              0],
-        [0,  np.cos(theta), np.sin(theta)],
-        [0, -np.sin(theta), np.cos(theta)]]
+         [0,  np.cos(theta_rad), np.sin(theta_rad)],
+         [0, -np.sin(theta_rad), np.cos(theta_rad)]]
     )
     return x_rotation_matrix
 
