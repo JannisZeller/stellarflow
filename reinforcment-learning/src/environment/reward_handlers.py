@@ -31,7 +31,6 @@ class RewardHanlder(BaseHandler):
 
 class DistanceAndTargetReached(RewardHanlder):
 
-
     def compute_reward(self):
 
         distance = self.compute_distance()
