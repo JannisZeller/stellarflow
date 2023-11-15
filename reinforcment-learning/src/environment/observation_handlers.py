@@ -31,7 +31,7 @@ class StateAndDiffObservation(ObservationHandler):
             "diff-to-target": array_spec.ArraySpec(
                 (3,),
                 dtype=self.target.position.numpy().dtype,
-                name="target"
+                name="target-state"
             )
         }
 
@@ -82,6 +82,30 @@ class GravityObservation(ObservationHandler):
         }
         super().set_current_state(is_initial)
 
+
+class WalkerTargetPositionsObservation(ObservationHandler):
+
+    def construct_observation_spec(self):
+        self._observation_spec = {
+            "walker-state": array_spec.ArraySpec(
+                self.walker.state_vector.shape,
+                dtype=self.walker.state_vector_numpy.dtype,
+                name="walker-state"
+            ),
+            "target-state": array_spec.ArraySpec(
+                self.target.state_vector.shape,
+                dtype=self.target.state_vector_numpy.dtype,
+                name="target"
+            )
+        }
+
+
+    def set_current_state(self, is_initial=False):
+        self.state = {
+            "walker-state": self.walker.state_vector_numpy,
+            "target-state": self.target.state_vector_numpy
+        }
+        super().set_current_state(is_initial)
 
 
 class AllPositionsObservation(ObservationHandler):

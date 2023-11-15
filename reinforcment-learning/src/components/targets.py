@@ -20,6 +20,10 @@ class Target(ABC):
         self.name = name
 
     @property
+    def state_vector_numpy(self) -> np.ndarray:
+        return self.state_vector.numpy()
+    
+    @property
     def position(self) -> tf.Tensor:
         return self.state_vector[:3]
 
